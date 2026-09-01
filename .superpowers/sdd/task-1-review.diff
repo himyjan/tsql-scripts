@@ -1,0 +1,77 @@
+f0c5939 feat: add config.psd1 scaffold and parameters
+ .gitignore                                 |  3 ++-
+ powershell/daily-check/config.example.psd1 | 15 +++++++++++++++
+ powershell/daily-check/daily-check.ps1     | 30 ++++++++++++++++++++++++++++++
+ 3 files changed, 47 insertions(+), 1 deletion(-)
+diff --git a/.gitignore b/.gitignore
+index 57fc1c3..b0b4e86 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,5 +1,6 @@
+ .ionide
+ sqltools_*.log
+ debug.log
+ *~
+-powershell/daily-check/docs/
+\ No newline at end of file
++powershell/daily-check/docs/
++config.psd1
+\ No newline at end of file
+diff --git a/powershell/daily-check/config.example.psd1 b/powershell/daily-check/config.example.psd1
+new file mode 100644
+index 0000000..4491e95
+--- /dev/null
++++ b/powershell/daily-check/config.example.psd1
+@@ -0,0 +1,15 @@
++@{
++    EmailFrom = "jack@sqlserver-dba.com"
++    EmailTo = @("jack@sqlserver-dba.com")
++    SmtpServer = "mysmtp"
++    SmtpPort = 25
++    JobDurationThresholdPercent = 50
++    JobDurationThresholdMinutes = 5
++    LookbackHours = 26
++    BaselineDays = 30
++    RetentionDays = 30
++    InstancesFile = "config\instances.txt"
++    LogPath = "logs"
++    Encrypt = $true
++    TrustServerCertificate = $true
++}
+diff --git a/powershell/daily-check/daily-check.ps1 b/powershell/daily-check/daily-check.ps1
+new file mode 100644
+index 0000000..2afb9d3
+--- /dev/null
++++ b/powershell/daily-check/daily-check.ps1
+@@ -0,0 +1,30 @@
++[CmdletBinding()]
++param (
++    [string]$Instance,
++    [string]$OutputPath
++)
++
++$ErrorActionPreference = "Stop"
++$basepath = (Get-Item $PSScriptRoot).FullName
++$configPath = Join-Path $basepath "config.psd1"
++
++if (-not (Test-Path $configPath)) {
++    $Host.UI.WriteErrorLine("Configuration file missing: $configPath")
++    exit 2
++}
++
++$cfg = Import-PowerShellDataFile -Path $configPath
++$requiredKeys = @('EmailFrom', 'EmailTo', 'SmtpServer', 'JobDurationThresholdPercent', 'JobDurationThresholdMinutes', 'InstancesFile', 'LogPath')
++foreach ($k in $requiredKeys) {
++    if (-not $cfg.ContainsKey($k)) { $Host.UI.WriteErrorLine("Missing config key: $k"); exit 2 }
++}
++
++$lookbackHours = if ($cfg.ContainsKey('LookbackHours')) { $cfg.LookbackHours } else { 26 }
++$baselineDays = if ($cfg.ContainsKey('BaselineDays')) { $cfg.BaselineDays } else { 30 }
++$retentionDays = if ($cfg.ContainsKey('RetentionDays')) { $cfg.RetentionDays } else { 30 }
++$isodate = (Get-Date).ToString("yyyyMMdd_HHmmss")
++
++if (-not $Instance -and -not (Test-Path (Join-Path $basepath $cfg.InstancesFile))) {
++    $Host.UI.WriteErrorLine("Instances file missing: $($cfg.InstancesFile)")
++    exit 2
++}
+\ No newline at end of file
